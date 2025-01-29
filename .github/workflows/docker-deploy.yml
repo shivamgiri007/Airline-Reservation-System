@@ -1,0 +1,52 @@
+name: Docker Build and Deploy
+
+on:
+  push:
+    branches:
+      - main  # Trigger the workflow on push to the main branch
+  pull_request:
+    branches:
+      - main  # Trigger the workflow on pull requests to the main branch
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest  # Use the latest Ubuntu environment
+
+    steps:
+      # Check out the repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Set up Docker Buildx for multi-platform builds (optional)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Log in to Docker Hub (or another container registry)
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      # Build the Docker image
+      - name: Build Docker image
+        run: docker build -t airline-management-system .
+
+      # Tag the Docker image
+      - name: Tag Docker image
+        run: |
+          docker tag airline-management-system ${{ secrets.DOCKER_HUB_USERNAME }}/airline-management-system:latest
+
+      # Push the Docker image to Docker Hub
+      - name: Push Docker image
+        run: docker push ${{ secrets.DOCKER_HUB_USERNAME }}/airline-management-system:latest
+
+      # Deploy the Docker image (optional)
+      - name: Deploy to server
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/airline-management-system:latest
+            docker stop airline-app || true
+            docker rm airline-app || true
+            docker run -d --name airline-app -p 8080:8080 ${{ secrets.DOCKER_HUB_USERNAME }}/airline-management-system:latest
+          "
